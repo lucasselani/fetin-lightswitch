@@ -107,23 +107,24 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         switch (buttonView.getId()){
             case R.id.lampSwitch:
                 if(isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataLampOn(), mStartAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataLampOn());
+
                 } else{
-                    enableBluetoothAdvertiser(getAdvertiseDataLampOff(), mStopAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataLampOff());
                 }
                 break;
             case R.id.simSwitch:
                 if(!isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataSimOn(), mStartAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataSimOn());
                 }else{
-                    enableBluetoothAdvertiser(getAdvertiseDataSimOff(), mStopAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataSimOff());
                 }
                 break;
             case R.id.sensSwitch:
                 if(!isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataSensOn(), mStartAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataSensOn());
                 }else{
-                    enableBluetoothAdvertiser(getAdvertiseDataSensOff(), mStopAdvertiseCallback);
+                    enableBluetoothAdvertiser(getAdvertiseDataSensOff());
                 }
                 break;
             default:
@@ -183,14 +184,14 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         }
     }
 
-    private void enableBluetoothAdvertiser(AdvertiseData advertiseData, AdvertiseCallback advertiseCallback) {
+    private void enableBluetoothAdvertiser(AdvertiseData advertiseData) {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         Log.v(TAG, "Bluetooth Adapter Enabled");
         if (!mBluetoothAdapter.isEnabled()) return;
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
-        if (mBluetoothLeScanner != null) {
-            Log.v(TAG, "Bluetooth Scanner Enabled");
-            mBluetoothLeAdvertiser.startAdvertising(ADVERTISE_SETTINGS, advertiseData, advertiseCallback);
+        if (mBluetoothLeAdvertiser != null) {
+            Log.v(TAG, "Bluetooth Advertiser Enabled");
+            mBluetoothLeAdvertiser.startAdvertising(ADVERTISE_SETTINGS, advertiseData, mStartAdvertiseCallback);
         } else {
             Toast.makeText(MainActivity.this,
                     "Seu dispositivo não suporta BLE Advertiser!",
@@ -228,10 +229,10 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             Log.v("Advertiser Enabled", settingsInEffect.toString());
-            mAdvertiserHandler.postDelayed(new Runnable() {
+           mAdvertiserHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    mBluetoothLeAdvertiser.stopAdvertising(mStartAdvertiseCallback);
+                    mBluetoothLeAdvertiser.stopAdvertising(mStopAdvertiseCallback);
                 }
             }, INTERVAL);
             super.onStartSuccess(settingsInEffect);
