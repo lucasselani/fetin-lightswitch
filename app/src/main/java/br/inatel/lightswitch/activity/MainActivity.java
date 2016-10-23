@@ -55,7 +55,8 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
     private static final int REQUEST_ENABLE_BT = 1;
     private static final String TAG = MainActivity.class.getName();
     private static final String UUID_BEACON = "88c4649c-9875-4b8f-b2e6-5d06ae55f38c";
-    private static final int INTERVAL = 1000;
+    private static final int INTERVAL = 500;
+    private static final int LE_CALLBACK_TIMEOUT_MILLIS = 2000;
     private Handler mAdvertiserHandler;
     private Handler mDialogHandler;
     private ProgressDialog mDialog;
@@ -88,8 +89,6 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         simulatorSwitch.setOnCheckedChangeListener(this);
         sensorSwitch = (SwitchCompat) findViewById(R.id.sensSwitch);
         sensorSwitch.setOnCheckedChangeListener(this);
-
-        mAdvertiserHandler = new Handler();
     }
 
     @Override
@@ -103,7 +102,8 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
             public void run() {
                 mDialog.dismiss();
             }
-        },INTERVAL);
+        },INTERVAL+LE_CALLBACK_TIMEOUT_MILLIS);
+
         switch (buttonView.getId()){
             case R.id.lampSwitch:
                 if(isChecked){
@@ -130,7 +130,6 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
             default:
                 break;
         }
-
     }
 
     @Override
@@ -188,10 +187,19 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         Log.v(TAG, "Bluetooth Adapter Enabled");
         if (!mBluetoothAdapter.isEnabled()) return;
+
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
         if (mBluetoothLeAdvertiser != null) {
             Log.v(TAG, "Bluetooth Advertiser Enabled");
-            mBluetoothLeAdvertiser.startAdvertising(ADVERTISE_SETTINGS, advertiseData, mStartAdvertiseCallback);
+            mBluetoothLeAdvertiser.startAdvertising(ADVERTISE_SETTINGS, advertiseData, mAdvertiseCallback);
+            mAdvertiserHandler = new Handler();
+            mAdvertiserHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback);
+                }
+            }, INTERVAL);
+
         } else {
             Toast.makeText(MainActivity.this,
                     "Seu dispositivo não suporta BLE Advertiser!",
@@ -225,40 +233,20 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         }
     };
 
-    private final AdvertiseCallback mStartAdvertiseCallback = new AdvertiseCallback() {
+    private final AdvertiseCallback mAdvertiseCallback = new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            super.onStartSuccess(settingsInEffect);
             Log.v("Advertiser Enabled", settingsInEffect.toString());
-           mAdvertiserHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mBluetoothLeAdvertiser.stopAdvertising(mStopAdvertiseCallback);
-                }
-            }, INTERVAL);
-            super.onStartSuccess(settingsInEffect);
         }
 
         @Override
         public void onStartFailure(int errorCode) {
-            Log.e("BLE", "Advertising onStartFailure: " + errorCode);
             super.onStartFailure(errorCode);
+            Log.e("BLE", "Advertising onStartFailure: " + errorCode);
+            if(errorCode == 3) mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback);
         }
     };
-
-    private final AdvertiseCallback mStopAdvertiseCallback = new AdvertiseCallback() {
-        @Override
-        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            Log.v("Advertiser Disabled", settingsInEffect.toString());
-            super.onStartSuccess(settingsInEffect);
-        }
-
-        @Override
-        public void onStartFailure(int errorCode) {
-            Log.e("BLE", "Advertising onStartFailure: " + errorCode);
-            super.onStartFailure(errorCode);
-        }
-    };
-
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
