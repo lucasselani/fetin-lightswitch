@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">LightSwitch</string>
+    <string name="app_name">LightSwitch - BeatBeacon</string>
     <string name="action_settings">Settings</string>
     <string name="about">O aplicativo LigthSwitch do grupo BeatBeacon é usado para acender lâmpadas
     e tomadas e acionar seus sensores e/ou simuladores, usando um sinal de bluetooth de baixa potência!</string>

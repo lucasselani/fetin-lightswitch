@@ -62,6 +62,7 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
     private static final int INTERVAL = 500;
     private static final int LE_CALLBACK_TIMEOUT_MILLIS = 2000;
     private static final int SCAN_REFRESH_INTERVAL = 1500;
+    private static final int REFRESH_DIALOG_TIMEOUT = 6000;
     private ArrayList<Beacon> beacons = null;
     private BeaconListAdapter beaconListAdapter;
     private ListView listView;
@@ -80,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle("LightSwitch - BeatBeacon");
+        getSupportActionBar().setTitle(R.string.app_name);
 
         swipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.content_main);
         swipeRefreshLayout.setOnRefreshListener(onRefreshListenerListener);
@@ -96,8 +97,7 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+                refreshAppList();
             }
         });
     }
@@ -105,23 +105,7 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
     SwipeRefreshLayout.OnRefreshListener onRefreshListenerListener = new SwipeRefreshLayout.OnRefreshListener() {
         @Override
         public void onRefresh() {
-            if(mBluetoothAdapter.isEnabled()){
-                mScannerDialog = ProgressDialog.show(MainActivity.this,
-                        "", "Atualizando a página.\nPor favor aguarde...", true, true);
-                mBluetoothLeScanner.stopScan(mScanCallback);
-
-                new Handler().postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        for(int i=0; i<beacons.size(); i++){
-                            beacons.remove(i);
-                        }
-                        beaconListAdapter.notifyDataSetInvalidated();
-                        mBluetoothLeScanner.startScan(SCAN_FILTERS,SCAN_SETTINGS,mScanCallback);
-                    }
-                }, SCAN_REFRESH_INTERVAL);
-            }
-
+            refreshAppList();
             swipeRefreshLayout.setRefreshing(false);
         }
     };
@@ -174,6 +158,38 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
         }
     }
 
+    public void refreshAppList(){
+            if(mBluetoothAdapter.isEnabled()){
+                mScannerDialog = ProgressDialog.show(MainActivity.this,
+                        "", "Atualizando a página.\nPor favor aguarde...", true, true);
+                mBluetoothLeScanner.stopScan(mScanCallback);
+
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        for(int i=0; i<beacons.size(); i++){
+                            beacons.remove(i);
+                        }
+                        beaconListAdapter.notifyDataSetInvalidated();
+                        mBluetoothLeScanner.startScan(SCAN_FILTERS,SCAN_SETTINGS,mScanCallback);
+                    }
+                }, SCAN_REFRESH_INTERVAL);
+            }
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if(mScannerDialog != null){
+                        if(mScannerDialog.isShowing()){
+                            mScannerDialog.dismiss();
+                            Snackbar.make(findViewById(R.id.coordinatorLayout),
+                                    "A atualização falhou!\nPor favor realize-a novamente.",
+                                    Snackbar.LENGTH_LONG).show();
+                        }
+                    }
+                }
+            }, REFRESH_DIALOG_TIMEOUT);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -203,7 +219,9 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
     private void askEnableBluetooth() {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBluetoothAdapter == null)
-            Toast.makeText(this, "Seu dispositivo não suporta Bluetooth!", Toast.LENGTH_LONG);
+            Snackbar.make(findViewById(R.id.coordinatorLayout),
+                    "Seu dispositivo não suporta Bluetooth!",
+                    Snackbar.LENGTH_LONG).show();
         else if (!mBluetoothAdapter.isEnabled()) {
             Intent enableBTIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBTIntent, REQUEST_ENABLE_BT);
@@ -219,9 +237,9 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
             Log.v(TAG, "Bluetooth Scanner Enabled");
             mBluetoothLeScanner.startScan(SCAN_FILTERS, SCAN_SETTINGS, mScanCallback);
         } else {
-            Toast.makeText(MainActivity.this,
-                    "Seu dispositivo não suporta leitor de BLE!",
-                    Toast.LENGTH_LONG).show();
+            Snackbar.make(findViewById(R.id.coordinatorLayout),
+                    "Seu dispositivo não suporta scanner de Bluetooth Low Energy!",
+                    Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -243,9 +261,9 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
             }, INTERVAL);
 
         } else {
-            Toast.makeText(MainActivity.this,
-                    "Seu dispositivo não suporta BLE Advertiser!",
-                    Toast.LENGTH_LONG).show();
+            Snackbar.make(findViewById(R.id.coordinatorLayout),
+                    "Seu dispositivo não suporta enviar dados em Bluetooth Low Energy!",
+                    Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -355,9 +373,9 @@ public class MainActivity extends AppCompatActivity implements BeaconListAdapter
         try {
             enableBluetoothScanner();
         } catch (SecurityException se) {
-            Toast.makeText(MainActivity.this,
+            Snackbar.make(findViewById(R.id.coordinatorLayout),
                     "Não é possível usar o aplicativo sem conceder permissões!",
-                    Toast.LENGTH_LONG).show();
+                    Snackbar.LENGTH_LONG).show();
             askPermissions();
         } catch (Exception e) {
             e.printStackTrace();
