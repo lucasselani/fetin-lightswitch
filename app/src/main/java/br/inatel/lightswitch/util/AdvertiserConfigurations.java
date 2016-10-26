@@ -16,9 +16,9 @@ import java.util.UUID;
 public class AdvertiserConfigurations {
     private ParcelUuid PARCEL_UUID = new ParcelUuid(UUID.fromString("CDB7950D-73F1-4D4D-8E47-C090502DBD63"));
 
-    public static AdvertiseData getAdvertiseDataLampOn(){
+    public static AdvertiseData getAdvertiseDataLampOn(byte id[]){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x01);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()
@@ -32,9 +32,9 @@ public class AdvertiserConfigurations {
         return advertiseData;
     }
 
-    public static AdvertiseData getAdvertiseDataLampOff(){
+    public static AdvertiseData getAdvertiseDataLampOff(byte[] id){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x02);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()
@@ -48,9 +48,9 @@ public class AdvertiserConfigurations {
         return advertiseData;
     }
 
-    public static AdvertiseData getAdvertiseDataSimOn(){
+    public static AdvertiseData getAdvertiseDataSimOn(byte[] id){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x11);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()
@@ -64,9 +64,9 @@ public class AdvertiserConfigurations {
         return advertiseData;
     }
 
-    public static AdvertiseData getAdvertiseDataSimOff(){
+    public static AdvertiseData getAdvertiseDataSimOff(byte id[]){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x12);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()
@@ -80,9 +80,9 @@ public class AdvertiserConfigurations {
         return advertiseData;
     }
 
-    public static AdvertiseData getAdvertiseDataSensOn(){
+    public static AdvertiseData getAdvertiseDataSensOn(byte[] id){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x21);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()
@@ -96,9 +96,9 @@ public class AdvertiserConfigurations {
         return advertiseData;
     }
 
-    public static AdvertiseData getAdvertiseDataSensOff(){
+    public static AdvertiseData getAdvertiseDataSensOff(byte[] id){
         ByteBuffer mManufacturerData = ByteBuffer.allocate(2);
-        mManufacturerData.put(0, (byte) 0xAA);
+        mManufacturerData.put(0, id[0]);
         mManufacturerData.put(1, (byte) 0x22);
 
         AdvertiseData advertiseData = new AdvertiseData.Builder()

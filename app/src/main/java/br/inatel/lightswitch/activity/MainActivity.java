@@ -14,31 +14,35 @@ import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.ParcelUuid;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SwitchCompat;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.CompoundButton;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import java.nio.ByteBuffer;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import br.inatel.lightswitch.R;
+import br.inatel.lightswitch.adapter.BeaconListAdapter;
+import br.inatel.lightswitch.model.Beacon;
 
 import static br.inatel.lightswitch.util.AdvertiserConfigurations.ADVERTISE_SETTINGS;
 import static br.inatel.lightswitch.util.AdvertiserConfigurations.getAdvertiseDataLampOff;
@@ -50,22 +54,25 @@ import static br.inatel.lightswitch.util.AdvertiserConfigurations.getAdvertiseDa
 import static br.inatel.lightswitch.util.ScanConfigurations.SCAN_FILTERS;
 import static br.inatel.lightswitch.util.ScanConfigurations.SCAN_SETTINGS;
 
-public class MainActivity extends AppCompatActivity implements CompoundButton.OnCheckedChangeListener  {
+public class MainActivity extends AppCompatActivity implements BeaconListAdapter.OnCoumpoundButtonClicked  {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final String TAG = MainActivity.class.getName();
     private static final String UUID_BEACON = "88c4649c-9875-4b8f-b2e6-5d06ae55f38c";
     private static final int INTERVAL = 500;
     private static final int LE_CALLBACK_TIMEOUT_MILLIS = 2000;
+    private static final int SCAN_REFRESH_INTERVAL = 1500;
+    private ArrayList<Beacon> beacons = null;
+    private BeaconListAdapter beaconListAdapter;
+    private ListView listView;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private Handler mAdvertiserHandler;
     private Handler mDialogHandler;
-    private ProgressDialog mDialog;
+    private ProgressDialog mAdvertiserDialog;
+    private ProgressDialog mScannerDialog;
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothLeScanner mBluetoothLeScanner;
     private BluetoothLeAdvertiser mBluetoothLeAdvertiser;
-    private SwitchCompat lampSwitch;
-    private SwitchCompat simulatorSwitch;
-    private SwitchCompat sensorSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +80,17 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        getSupportActionBar().setTitle("LightSwitch - BeatBeacon");
+
+        swipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.content_main);
+        swipeRefreshLayout.setOnRefreshListener(onRefreshListenerListener);
+
+        beacons = new ArrayList<>();
+        beaconListAdapter = new BeaconListAdapter(beacons, this);
+        beaconListAdapter.setOnCoumpoundButtonClicked(this);
+        listView = (ListView) findViewById(R.id.list);
+        listView.setItemsCanFocus(true);
+        listView.setAdapter(beaconListAdapter);
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -82,49 +100,73 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
                         .setAction("Action", null).show();
             }
         });
-
-        lampSwitch = (SwitchCompat) findViewById(R.id.lampSwitch);
-        lampSwitch.setOnCheckedChangeListener(this);
-        simulatorSwitch = (SwitchCompat) findViewById(R.id.simSwitch);
-        simulatorSwitch.setOnCheckedChangeListener(this);
-        sensorSwitch = (SwitchCompat) findViewById(R.id.sensSwitch);
-        sensorSwitch.setOnCheckedChangeListener(this);
     }
 
+    SwipeRefreshLayout.OnRefreshListener onRefreshListenerListener = new SwipeRefreshLayout.OnRefreshListener() {
+        @Override
+        public void onRefresh() {
+            if(mBluetoothAdapter.isEnabled()){
+                mScannerDialog = ProgressDialog.show(MainActivity.this,
+                        "", "Atualizando a página.\nPor favor aguarde...", true, true);
+                mBluetoothLeScanner.stopScan(mScanCallback);
+
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        for(int i=0; i<beacons.size(); i++){
+                            beacons.remove(i);
+                        }
+                        beaconListAdapter.notifyDataSetInvalidated();
+                        mBluetoothLeScanner.startScan(SCAN_FILTERS,SCAN_SETTINGS,mScanCallback);
+                    }
+                }, SCAN_REFRESH_INTERVAL);
+            }
+
+            swipeRefreshLayout.setRefreshing(false);
+        }
+    };
+
     @Override
-    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+    public void onSwitchCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         mDialogHandler = new Handler();
-        mDialog = ProgressDialog.show(MainActivity.this,
+        mAdvertiserDialog = ProgressDialog.show(MainActivity.this,
                 "", "Enviando comando.\nPor favor aguarde...", true, true);
 
         mDialogHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                mDialog.dismiss();
+                mAdvertiserDialog.dismiss();
             }
         },INTERVAL+LE_CALLBACK_TIMEOUT_MILLIS);
+
+        View relativeLayout = (View) buttonView.getParent();
+        View rootLayout = (View) relativeLayout.getParent();
+        ListView listView = (ListView) rootLayout.getParent();
+        int position = listView.getPositionForView(rootLayout);
+
+        byte[] id = ((Beacon) beaconListAdapter.getItem(position)).getId();
 
         switch (buttonView.getId()){
             case R.id.lampSwitch:
                 if(isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataLampOn());
+                    enableBluetoothAdvertiser(getAdvertiseDataLampOn(id));
 
                 } else{
-                    enableBluetoothAdvertiser(getAdvertiseDataLampOff());
+                    enableBluetoothAdvertiser(getAdvertiseDataLampOff(id));
                 }
                 break;
             case R.id.simSwitch:
                 if(!isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataSimOn());
+                    enableBluetoothAdvertiser(getAdvertiseDataSimOn(id));
                 }else{
-                    enableBluetoothAdvertiser(getAdvertiseDataSimOff());
+                    enableBluetoothAdvertiser(getAdvertiseDataSimOff(id));
                 }
                 break;
             case R.id.sensSwitch:
                 if(!isChecked){
-                    enableBluetoothAdvertiser(getAdvertiseDataSensOn());
+                    enableBluetoothAdvertiser(getAdvertiseDataSensOn(id));
                 }else{
-                    enableBluetoothAdvertiser(getAdvertiseDataSensOff());
+                    enableBluetoothAdvertiser(getAdvertiseDataSensOff(id));
                 }
                 break;
             default:
@@ -138,7 +180,7 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         registerReceiver(mReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
         askEnableBluetooth();
         askPermissions();
-        //enableBluetoothScanner();
+        enableBluetoothScanner();
     }
 
     @Override
@@ -216,16 +258,47 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
                 Log.w(TAG, "Null ScanRecord for device " + result.getDevice().getAddress());
                 return;
             } else {
-                String uuid = null;
-                final String mac = result.getDevice().getAddress();
+                if(mScannerDialog != null) if(mScannerDialog.isShowing()) mScannerDialog.dismiss();
+                String name = result.getDevice().getName();
+                String mac = result.getDevice().getAddress();
+                Beacon beacon = new Beacon();
+                double rssi = result.getRssi();
 
-                List<ParcelUuid> serviceUuids = scanRecord.getServiceUuids();
-                if(serviceUuids != null){
-                    if(!serviceUuids.isEmpty()){
-                        uuid = scanRecord.getServiceUuids().get(0).getUuid().toString();
-                    } else return;
+                if(name == null || name.isEmpty()) name = "N/A";
+                if(!name.contains("Tug")) return;
+                if(mac == null || mac.isEmpty()) mac = "N/A";
+
+                try{
+                    String[] args1 = mac.split(":");
+                    beacon.setId(hexStringToByteArray(args1[0]));
+
+                    String[] args2 = name.split(" ");
+                    beacon.setFullname(name);
+                    beacon.setDeviceName(args2[0]);
+                    beacon.setPower(args2[1] + "/" + args2[2]);
+                    beacon.setMac(mac);
+                    beacon.setRssi(String.valueOf(rssi));
+
+                    Log.v("Beacon: ", beacon.getFullname());
+                } catch (Exception e){
+                    e.printStackTrace();
                 }
+
+                int pos = 0;
+                for(int i=0; i<beacons.size(); i++){
+                    if(beacons.get(i).getMac().equals(mac)){
+                        beacons.remove(i);
+                        pos = i;
+                        beaconListAdapter.notifyDataSetInvalidated();
+                        break;
+                    }
+                }
+                beacons.add(pos, beacon);
+                beaconListAdapter.notifyDataSetChanged();
             }
+
+            mBluetoothLeScanner.stopScan(this);
+            mBluetoothLeScanner.startScan(SCAN_FILTERS, SCAN_SETTINGS, this);
         }
         @Override
         public void onScanFailed(int errorCode) {
@@ -263,7 +336,7 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
 
                     case BluetoothAdapter.STATE_ON:
                         //Indicates the local Bluetooth adapter is on, and ready for use.
-                        //enableBluetoothScanner();
+                        enableBluetoothScanner();
                         break;
 
                     case BluetoothAdapter.STATE_OFF:
@@ -280,7 +353,7 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         try {
-            //enableBluetoothScanner();
+            enableBluetoothScanner();
         } catch (SecurityException se) {
             Toast.makeText(MainActivity.this,
                     "Não é possível usar o aplicativo sem conceder permissões!",
@@ -298,7 +371,7 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        //if (resultCode == REQUEST_ENABLE_BT) enableBluetoothScanner();
+        if (resultCode == REQUEST_ENABLE_BT) enableBluetoothScanner();
     }
 
     public static String getGuidFromByteArray(byte[] bytes) {
@@ -321,6 +394,16 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
         return new String(hexChars);
     }
 
+    public static byte[] hexStringToByteArray(String s) {
+        int len = s.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                    + Character.digit(s.charAt(i+1), 16));
+        }
+        return data;
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -337,11 +420,16 @@ public class MainActivity extends AppCompatActivity implements CompoundButton.On
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
-            return true;
+            new AlertDialog.Builder(this)
+                    .setMessage(R.string.about)
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.dismiss();
+                        }
+                    }).show();
         }
 
         return super.onOptionsItemSelected(item);
     }
-
-
 }
